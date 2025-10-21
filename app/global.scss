@@ -1,0 +1,113 @@
+/*
+    Josh's Custom CSS Reset
+    https://www.joshwcomeau.com/css/custom-css-reset/
+*/
+// RESET
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  overflow-wrap: break-word;
+}
+
+#root,
+#__next {
+  isolation: isolate;
+  height: 100%;
+}
+// END RESET
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+footer a {
+  text-decoration: underline;
+}
+
+footer .link-button {
+  background: none;
+  border: none;
+  color: white;
+  text-decoration: underline;
+  cursor: pointer; 
+  padding: 0;
+}
+
+.overviewTable, .transactionsTable {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: white;
+  border: 1px solid #ddd;
+
+}
+
+.overviewTable th, .overviewTable td,
+.transactionsTable th, .transactionsTable td {
+  color: rgb(77, 77, 77);
+  border-bottom: 1px solid #ddd;
+  padding: 5px 8px;
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.overviewTable th, .transactionsTable th {
+  text-align: left;
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.34px;
+  border-bottom-width: 3px;
+  border-right: 1px solid #ddd;
+
+}
+
+td.currencyCell, th.currencyCell {
+  text-align: right;
+}
+
+pre {
+  white-space: pre-wrap;
+  overflow-x: hidden;
+}
