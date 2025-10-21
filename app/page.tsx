@@ -1,12 +1,14 @@
 import { Footer } from "components/Footer";
 import { Menu } from "components/Menu";
-//const prisma = new PrismaClient();
 
 export default async function Page() {
   return (
     <>
       <Menu />
-      Splash
+      <main style={{ padding: '2rem', textAlign: 'center' }}>
+        <h1>Welcome to Dagligvaror</h1>
+        <p>Your grocery management application</p>
+      </main>
       <Footer />
     </>
   );

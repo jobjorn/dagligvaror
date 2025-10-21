@@ -9,7 +9,8 @@ import './global.scss';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Klementin'
+  title: 'Dagligvaror',
+  description: 'A grocery management application'
 };
 
 export default async function RootLayout({

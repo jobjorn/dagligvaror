@@ -51,10 +51,9 @@ export const Footer: React.FC<{}> = async () => {
           </ul>
         </Box>
         <Box sx={{ flexGrow: 1 }}>
-          Ett projekt av
+          Dagligvaror - Grocery Management
           <br />
-          <Link href="https://www.jobjorn.se/">Jobjörn</Link> &{' '}
-          <Link href="https://www.mejstedt.se/">Hedvig</Link> 🍊
+          © 2024
         </Box>
       </Container>
     </footer>

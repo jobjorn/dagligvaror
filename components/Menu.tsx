@@ -43,7 +43,7 @@ export const Menu: React.FC<{}> = () => {
         </IconButton>
         <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
           <Link href="/" style={{ textDecoration: 'none' }} passHref>
-            <h1>Klementin</h1>
+            <h1>Dagligvaror</h1>
           </Link>
         </Typography>
         <ToolbarList />
