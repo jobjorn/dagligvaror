@@ -1,5 +1,5 @@
 'use client';
-import { Settings, ViewList, Analytics, Store } from '@mui/icons-material';
+import { Settings, ViewList, Analytics, Store, CompareArrows } from '@mui/icons-material';
 import LoginIcon from '@mui/icons-material/Login';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -83,6 +83,15 @@ const DrawerList: React.FC<{}> = () => {
             <Store />
           </ListItemIcon>
           <ListItemText primary={'Butiker'} />
+        </ListItemButton>
+      </Link>
+
+      <Link href="/store-comparison" passHref>
+        <ListItemButton key={'Butiksjämförelse'}>
+          <ListItemIcon>
+            <CompareArrows />
+          </ListItemIcon>
+          <ListItemText primary={'Butiksjämförelse'} />
         </ListItemButton>
       </Link>
 
