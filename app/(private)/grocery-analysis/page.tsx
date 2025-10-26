@@ -42,48 +42,58 @@ export default function GroceryAnalysisPage() {
       setLoading(true);
       setError(null);
 
-      // Fetch the XML data
-      const response = await fetch('/Butik_kvittorader.xml');
-      if (!response.ok) {
-        throw new Error('Failed to fetch grocery data');
-      }
-
-      const xmlText = await response.text();
-      
-      // Parse the XML data
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-      
-      // Extract transaction data
-      const transactions = xmlDoc.querySelectorAll('transactions');
+      // Fetch both XML files
+      const xmlFiles = ['/Butik_kvittorader.xml', '/Butik_kvittorader_2.xml'];
       const itemMap = new Map<string, GroceryItem>();
 
-      transactions.forEach((transaction) => {
-        const quantity = parseFloat(transaction.querySelector('quantity')?.textContent || '0');
-        const price = parseFloat(transaction.querySelector('price')?.textContent || '0');
-        const description = transaction.querySelector('itemDesc')?.textContent || 'Unknown Item';
-        const transactionId = transaction.querySelector('transactionId')?.textContent || '';
-
-        if (quantity > 0 && price > 0) {
-          const key = description.trim() || 'Unknown Item';
-          
-          if (itemMap.has(key)) {
-            const existing = itemMap.get(key)!;
-            existing.totalQuantity += quantity;
-            existing.totalPrice += price;
-            existing.purchaseCount += 1;
-            existing.averagePrice = existing.totalPrice / existing.totalQuantity;
-          } else {
-            itemMap.set(key, {
-              description: key,
-              totalQuantity: quantity,
-              totalPrice: price,
-              averagePrice: price,
-              purchaseCount: 1
-            });
+      for (const xmlFile of xmlFiles) {
+        try {
+          const response = await fetch(xmlFile);
+          if (!response.ok) {
+            console.warn(`Failed to fetch ${xmlFile}, skipping...`);
+            continue;
           }
+
+          const xmlText = await response.text();
+          
+          // Parse the XML data
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+          
+          // Extract transaction data
+          const transactions = xmlDoc.querySelectorAll('transactions');
+
+          transactions.forEach((transaction) => {
+            const quantity = parseFloat(transaction.querySelector('quantity')?.textContent || '0');
+            const price = parseFloat(transaction.querySelector('price')?.textContent || '0');
+            const description = transaction.querySelector('itemDesc')?.textContent || 'Unknown Item';
+            const transactionId = transaction.querySelector('transactionId')?.textContent || '';
+
+            if (quantity > 0 && price > 0) {
+              const key = description.trim() || 'Unknown Item';
+              
+              if (itemMap.has(key)) {
+                const existing = itemMap.get(key)!;
+                existing.totalQuantity += quantity;
+                existing.totalPrice += price;
+                existing.purchaseCount += 1;
+                existing.averagePrice = existing.totalPrice / existing.totalQuantity;
+              } else {
+                itemMap.set(key, {
+                  description: key,
+                  totalQuantity: quantity,
+                  totalPrice: price,
+                  averagePrice: price,
+                  purchaseCount: 1
+                });
+              }
+            }
+          });
+        } catch (fileError) {
+          console.warn(`Error processing ${xmlFile}:`, fileError);
+          // Continue with other files even if one fails
         }
-      });
+      }
 
       // Convert to array and sort by total quantity
       const sortedItems = Array.from(itemMap.values())

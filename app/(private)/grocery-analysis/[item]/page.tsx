@@ -76,39 +76,37 @@ export default function ItemDetailPage() {
       setLoading(true);
       setError(null);
 
-      // Fetch the XML data
-      const response = await fetch('/Butik_kvittorader.xml');
-      if (!response.ok) {
-        throw new Error('Failed to fetch grocery data');
-      }
-
-      const xmlText = await response.text();
-      
-      // Parse the XML data
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-      
-      // First, get store information from the receipt data
-      const receiptResponse = await fetch('/Butik_kvitto.xml');
-      if (!receiptResponse.ok) {
-        throw new Error('Failed to fetch receipt data');
-      }
-      const receiptXmlText = await receiptResponse.text();
-      const receiptParser = new DOMParser();
-      const receiptXmlDoc = receiptParser.parseFromString(receiptXmlText, 'text/xml');
-      
-      // Create a map of transaction IDs to store names and dates
+      // Fetch both receipt XML files to get store information
+      const receiptFiles = ['/Butik_kvitto.xml', '/Butik_kvitto_2.xml'];
       const transactionStoreMap = new Map<string, { store: string; date: string }>();
-      const receiptTransactions = receiptXmlDoc.querySelectorAll('transactions');
-      receiptTransactions.forEach((transaction) => {
-        const transactionId = transaction.querySelector('transactionId')?.textContent || '';
-        const storeName = transaction.querySelector('marketingName')?.textContent || 'Unknown Store';
-        const timestamp = transaction.querySelector('transactionTimestamp')?.textContent || '';
-        transactionStoreMap.set(transactionId, { store: storeName, date: timestamp });
-      });
 
-      // Extract transaction data for this specific item
-      const transactions = xmlDoc.querySelectorAll('transactions');
+      for (const receiptFile of receiptFiles) {
+        try {
+          const receiptResponse = await fetch(receiptFile);
+          if (!receiptResponse.ok) {
+            console.warn(`Failed to fetch ${receiptFile}, skipping...`);
+            continue;
+          }
+          const receiptXmlText = await receiptResponse.text();
+          const receiptParser = new DOMParser();
+          const receiptXmlDoc = receiptParser.parseFromString(receiptXmlText, 'text/xml');
+          
+          // Create a map of transaction IDs to store names and dates
+          const receiptTransactions = receiptXmlDoc.querySelectorAll('transactions');
+          receiptTransactions.forEach((transaction) => {
+            const transactionId = transaction.querySelector('transactionId')?.textContent || '';
+            const storeName = transaction.querySelector('marketingName')?.textContent || 'Unknown Store';
+            const timestamp = transaction.querySelector('transactionTimestamp')?.textContent || '';
+            transactionStoreMap.set(transactionId, { store: storeName, date: timestamp });
+          });
+        } catch (fileError) {
+          console.warn(`Error processing ${receiptFile}:`, fileError);
+          // Continue with other files even if one fails
+        }
+      }
+
+      // Fetch both grocery data XML files
+      const groceryFiles = ['/Butik_kvittorader.xml', '/Butik_kvittorader_2.xml'];
       const priceHistory: PriceDataPoint[] = [];
       let totalQuantity = 0;
       let totalPrice = 0;
@@ -116,40 +114,62 @@ export default function ItemDetailPage() {
       let minPrice = Infinity;
       let maxPrice = 0;
 
-      transactions.forEach((transaction) => {
-        const quantity = parseFloat(transaction.querySelector('quantity')?.textContent || '0');
-        const price = parseFloat(transaction.querySelector('price')?.textContent || '0');
-        const description = transaction.querySelector('itemDesc')?.textContent || '';
-        const transactionId = transaction.querySelector('transactionId')?.textContent || '';
+      for (const groceryFile of groceryFiles) {
+        try {
+          const response = await fetch(groceryFile);
+          if (!response.ok) {
+            console.warn(`Failed to fetch ${groceryFile}, skipping...`);
+            continue;
+          }
 
-        // Check if this transaction is for our item
-        if (description.trim() === itemName && quantity > 0 && price > 0) {
-          const unitPrice = price / quantity;
-          const transactionInfo = transactionStoreMap.get(transactionId);
-          const storeName = transactionInfo?.store || 'Unknown Store';
-          const transactionDate = transactionInfo?.date || new Date().toISOString().split('T')[0];
+          const xmlText = await response.text();
           
-          // Convert timestamp to date string (format: "2017-05-16 21:17:00" -> "2017-05-16")
-          const dateOnly = transactionDate.split(' ')[0];
+          // Parse the XML data
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
           
-          // Normalize date format to ensure consistency
-          const normalizedDate = new Date(dateOnly).toISOString().split('T')[0];
-          
-          priceHistory.push({
-            date: normalizedDate,
-            price: unitPrice,
-            quantity: quantity,
-            transactionId: transactionId,
-            store: storeName
+          // Extract transaction data for this specific item
+          const transactions = xmlDoc.querySelectorAll('transactions');
+
+          transactions.forEach((transaction) => {
+            const quantity = parseFloat(transaction.querySelector('quantity')?.textContent || '0');
+            const price = parseFloat(transaction.querySelector('price')?.textContent || '0');
+            const description = transaction.querySelector('itemDesc')?.textContent || '';
+            const transactionId = transaction.querySelector('transactionId')?.textContent || '';
+
+            // Check if this transaction is for our item
+            if (description.trim() === itemName && quantity > 0 && price > 0) {
+              const unitPrice = price / quantity;
+              const transactionInfo = transactionStoreMap.get(transactionId);
+              const storeName = transactionInfo?.store || 'Unknown Store';
+              const transactionDate = transactionInfo?.date || new Date().toISOString().split('T')[0];
+              
+              // Convert timestamp to date string (format: "2017-05-16 21:17:00" -> "2017-05-16")
+              const dateOnly = transactionDate.split(' ')[0];
+              
+              // Normalize date format to ensure consistency
+              const normalizedDate = new Date(dateOnly).toISOString().split('T')[0];
+              
+              priceHistory.push({
+                date: normalizedDate,
+                price: unitPrice,
+                quantity: quantity,
+                transactionId: transactionId,
+                store: storeName
+              });
+
+              totalQuantity += quantity;
+              totalPrice += price;
+              purchaseCount += 1;
+              minPrice = Math.min(minPrice, unitPrice);
+              maxPrice = Math.max(maxPrice, unitPrice);
+            }
           });
-
-          totalQuantity += quantity;
-          totalPrice += price;
-          purchaseCount += 1;
-          minPrice = Math.min(minPrice, unitPrice);
-          maxPrice = Math.max(maxPrice, unitPrice);
+        } catch (fileError) {
+          console.warn(`Error processing ${groceryFile}:`, fileError);
+          // Continue with other files even if one fails
         }
-      });
+      }
 
       // Calculate price trend
       let priceTrend: 'up' | 'down' | 'stable' = 'stable';
