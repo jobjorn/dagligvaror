@@ -28,6 +28,7 @@ import {
   ShoppingCart
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import DateRangeFilter from '../../../../components/DateRangeFilter';
 
 interface PriceDataPoint {
   date: string;
@@ -62,14 +63,143 @@ export default function ItemDetailPage() {
   const itemName = decodeURIComponent(params.item as string);
   
   const [itemDetails, setItemDetails] = useState<ItemDetails | null>(null);
+  const [allPriceHistory, setAllPriceHistory] = useState<PriceDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<{ startDate: Date | null; endDate: Date | null }>({
+    startDate: null,
+    endDate: null
+  });
 
   useEffect(() => {
     if (itemName) {
       analyzeItemData(itemName);
     }
   }, [itemName]);
+
+  // Filter data based on date range
+  const filterDataByDateRange = (data: PriceDataPoint[]) => {
+    if (!dateRange.startDate && !dateRange.endDate) {
+      return data;
+    }
+
+    return data.filter(item => {
+      const itemDate = new Date(item.date);
+      const startDate = dateRange.startDate;
+      const endDate = dateRange.endDate;
+
+      if (startDate && endDate) {
+        return itemDate >= startDate && itemDate <= endDate;
+      } else if (startDate) {
+        return itemDate >= startDate;
+      } else if (endDate) {
+        return itemDate <= endDate;
+      }
+      return true;
+    });
+  };
+
+  // Get filtered data
+  const filteredPriceHistory = filterDataByDateRange(allPriceHistory);
+
+  // Recalculate statistics based on filtered data
+  const recalculateStats = (priceHistory: PriceDataPoint[]) => {
+    if (priceHistory.length === 0) {
+      return {
+        totalQuantity: 0,
+        totalPrice: 0,
+        averagePrice: 0,
+        purchaseCount: 0,
+        minPrice: 0,
+        maxPrice: 0,
+        priceTrend: 'stable' as const,
+        stores: [] as string[],
+        chartData: [] as ChartDataPoint[]
+      };
+    }
+
+    let totalQuantity = 0;
+    let totalPrice = 0;
+    let purchaseCount = 0;
+    let minPrice = Infinity;
+    let maxPrice = 0;
+
+    priceHistory.forEach(item => {
+      totalQuantity += item.quantity;
+      totalPrice += item.price * item.quantity;
+      purchaseCount += 1;
+      minPrice = Math.min(minPrice, item.price);
+      maxPrice = Math.max(maxPrice, item.price);
+    });
+
+    // Calculate price trend
+    let priceTrend: 'up' | 'down' | 'stable' = 'stable';
+    if (priceHistory.length >= 2) {
+      const firstHalf = priceHistory.slice(0, Math.floor(priceHistory.length / 2));
+      const secondHalf = priceHistory.slice(Math.floor(priceHistory.length / 2));
+      
+      const firstHalfAvg = firstHalf.reduce((sum, item) => sum + item.price, 0) / firstHalf.length;
+      const secondHalfAvg = secondHalf.reduce((sum, item) => sum + item.price, 0) / secondHalf.length;
+      
+      const trendThreshold = 0.1; // 10% change threshold
+      const changePercent = (secondHalfAvg - firstHalfAvg) / firstHalfAvg;
+      
+      if (changePercent > trendThreshold) {
+        priceTrend = 'up';
+      } else if (changePercent < -trendThreshold) {
+        priceTrend = 'down';
+      }
+    }
+
+    // Get unique stores
+    const stores = [...new Set(priceHistory.map(item => item.store))];
+
+    // Generate chart data
+    const datesOnly = priceHistory.map(item => item.date);
+    const minDate = new Date(Math.min(...datesOnly.map(d => new Date(d).getTime())));
+    const maxDate = new Date(Math.max(...datesOnly.map(d => new Date(d).getTime())));
+
+    const allDates: string[] = [];
+    if (minDate && maxDate) {
+      let currentDate = new Date(minDate);
+      while (currentDate <= maxDate) {
+        allDates.push(currentDate.toISOString().split('T')[0]);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+    }
+
+    const chartDataMap = new Map<string, ChartDataPoint>();
+    allDates.forEach(date => {
+      chartDataMap.set(date, { date: date });
+    });
+
+    priceHistory.forEach(item => {
+      let chartPoint = chartDataMap.get(item.date);
+      if (!chartPoint) {
+        chartPoint = { date: item.date };
+        chartDataMap.set(item.date, chartPoint);
+      }
+      chartPoint[item.store] = item.price;
+    });
+
+    const chartData = Array.from(chartDataMap.values()).sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    return {
+      totalQuantity,
+      totalPrice,
+      averagePrice: totalQuantity > 0 ? totalPrice / totalQuantity : 0,
+      purchaseCount,
+      minPrice: minPrice === Infinity ? 0 : minPrice,
+      maxPrice,
+      priceTrend,
+      stores,
+      chartData
+    };
+  };
+
+  const filteredStats = recalculateStats(filteredPriceHistory);
 
   const analyzeItemData = async (itemName: string) => {
     try {
@@ -239,6 +369,9 @@ export default function ItemDetailPage() {
       console.log('Chart data:', chartData);
       console.log('Stores:', stores);
 
+      // Store all price history for filtering
+      setAllPriceHistory(priceHistory);
+
       setItemDetails({
         description: itemName,
         totalQuantity,
@@ -311,6 +444,16 @@ export default function ItemDetailPage() {
         </Typography>
       </Box>
 
+      {/* Date Range Filter */}
+      <Box mb={3}>
+        <DateRangeFilter
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          onClear={() => setDateRange({ startDate: null, endDate: null })}
+          title="Filter by Date Range"
+        />
+      </Box>
+
       <Grid container spacing={3}>
         {/* Summary Cards */}
         <Grid item xs={12} md={6}>
@@ -327,7 +470,7 @@ export default function ItemDetailPage() {
                   </ListItemIcon>
                   <ListItemText 
                     primary="Times Purchased" 
-                    secondary={itemDetails.purchaseCount.toString()} 
+                    secondary={filteredStats.purchaseCount.toString()} 
                   />
                 </ListItem>
                 <ListItem>
@@ -336,7 +479,7 @@ export default function ItemDetailPage() {
                   </ListItemIcon>
                   <ListItemText 
                     primary="Total Spent" 
-                    secondary={formatPrice(itemDetails.totalPrice)} 
+                    secondary={formatPrice(filteredStats.totalPrice)} 
                   />
                 </ListItem>
                 <ListItem>
@@ -345,7 +488,7 @@ export default function ItemDetailPage() {
                   </ListItemIcon>
                   <ListItemText 
                     primary="Total Quantity" 
-                    secondary={`${itemDetails.totalQuantity.toFixed(1)} units`} 
+                    secondary={`${filteredStats.totalQuantity.toFixed(1)} units`} 
                   />
                 </ListItem>
               </List>
@@ -363,22 +506,22 @@ export default function ItemDetailPage() {
               <Box display="flex" flexDirection="column" gap={2}>
                 <Box display="flex" justifyContent="space-between">
                   <Typography>Average Price:</Typography>
-                  <Chip label={formatPrice(itemDetails.averagePrice)} color="primary" />
+                  <Chip label={formatPrice(filteredStats.averagePrice)} color="primary" />
                 </Box>
                 <Box display="flex" justifyContent="space-between">
                   <Typography>Min Price:</Typography>
-                  <Chip label={formatPrice(itemDetails.minPrice)} color="success" />
+                  <Chip label={formatPrice(filteredStats.minPrice)} color="success" />
                 </Box>
                 <Box display="flex" justifyContent="space-between">
                   <Typography>Max Price:</Typography>
-                  <Chip label={formatPrice(itemDetails.maxPrice)} color="error" />
+                  <Chip label={formatPrice(filteredStats.maxPrice)} color="error" />
                 </Box>
                 <Box display="flex" justifyContent="space-between" alignItems="center">
                   <Typography>Price Trend:</Typography>
                   <Chip 
-                    label={itemDetails.priceTrend.toUpperCase()} 
-                    color={itemDetails.priceTrend === 'up' ? 'error' : itemDetails.priceTrend === 'down' ? 'success' : 'default'}
-                    icon={itemDetails.priceTrend === 'up' ? <TrendingUp /> : itemDetails.priceTrend === 'down' ? <TrendingDown /> : undefined}
+                    label={filteredStats.priceTrend.toUpperCase()} 
+                    color={filteredStats.priceTrend === 'up' ? 'error' : filteredStats.priceTrend === 'down' ? 'success' : 'default'}
+                    icon={filteredStats.priceTrend === 'up' ? <TrendingUp /> : filteredStats.priceTrend === 'down' ? <TrendingDown /> : undefined}
                   />
                 </Box>
               </Box>
@@ -393,10 +536,10 @@ export default function ItemDetailPage() {
               <Typography variant="h6" gutterBottom>
                 Price History Over Time by Store
               </Typography>
-              {itemDetails.chartData.length > 0 ? (
+              {filteredStats.chartData.length > 0 ? (
                 <Box height={400}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={itemDetails.chartData}>
+                    <LineChart data={filteredStats.chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis 
                         dataKey="date" 
@@ -417,7 +560,7 @@ export default function ItemDetailPage() {
                         ]}
                       />
                       <Legend />
-                      {itemDetails.stores.map((store, index) => {
+                      {filteredStats.stores.map((store, index) => {
                         const colors = ['#1976d2', '#dc004e', '#9c27b0', '#00acc1', '#4caf50', '#ff9800', '#f44336', '#795548'];
                         const color = colors[index % colors.length];
                         return (
@@ -439,7 +582,7 @@ export default function ItemDetailPage() {
                 </Box>
               ) : (
                 <Alert severity="info">
-                  <Typography>No price history data available for this item.</Typography>
+                  <Typography>No price history data available for this item{dateRange.startDate || dateRange.endDate ? ' in the selected date range' : ''}.</Typography>
                 </Alert>
               )}
             </CardContent>
@@ -454,9 +597,9 @@ export default function ItemDetailPage() {
                 <ShoppingCart sx={{ mr: 1, verticalAlign: 'middle' }} />
                 Purchase History
               </Typography>
-              {itemDetails.priceHistory.length > 0 ? (
+              {filteredPriceHistory.length > 0 ? (
                 <List>
-                  {itemDetails.priceHistory
+                  {filteredPriceHistory
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) // Sort by date, newest first
                     .map((purchase, index) => (
                       <Box key={`${purchase.transactionId}-${index}`}>
@@ -501,13 +644,13 @@ export default function ItemDetailPage() {
                             }
                           />
                         </ListItem>
-                        {index < itemDetails.priceHistory.length - 1 && <Divider />}
+                        {index < filteredPriceHistory.length - 1 && <Divider />}
                       </Box>
                     ))}
                 </List>
               ) : (
                 <Alert severity="info">
-                  <Typography>No purchase history available for this item.</Typography>
+                  <Typography>No purchase history available for this item{dateRange.startDate || dateRange.endDate ? ' in the selected date range' : ''}.</Typography>
                 </Alert>
               )}
             </CardContent>
