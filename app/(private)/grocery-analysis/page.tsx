@@ -15,9 +15,11 @@ import {
   CardContent,
   Chip,
   Divider,
-  ListItemButton
+  ListItemButton,
+  TextField,
+  InputAdornment
 } from '@mui/material';
-import { ShoppingCart, TrendingUp, LocalGroceryStore } from '@mui/icons-material';
+import { ShoppingCart, TrendingUp, LocalGroceryStore, Search } from '@mui/icons-material';
 import DateRangeFilter from '../../../components/DateRangeFilter';
 
 interface Transaction {
@@ -46,18 +48,28 @@ export default function GroceryAnalysisPage() {
     startDate: null,
     endDate: null
   });
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     analyzeGroceryData();
   }, []);
 
-  // Update filtered items when date range changes
+  // Update filtered items when date range or search query changes
   useEffect(() => {
-    const filtered = filterDataByDateRange(allItems)
+    let filtered = filterDataByDateRange(allItems);
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(item => 
+        item.description.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    filtered = filtered
       .sort((a, b) => b.totalQuantity - a.totalQuantity)
       .slice(0, 50);
     setItems(filtered);
-  }, [dateRange, allItems]);
+  }, [dateRange, allItems, searchQuery]);
 
   // Filter data based on date range
   const filterDataByDateRange = (items: GroceryItem[]) => {
@@ -260,6 +272,28 @@ export default function GroceryAnalysisPage() {
         />
       </Box>
 
+      {/* Search Bar */}
+      <Box mb={3}>
+        <TextField
+          fullWidth
+          placeholder="Search items..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search />
+              </InputAdornment>
+            ),
+          }}
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 2,
+            }
+          }}
+        />
+      </Box>
+
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
@@ -342,7 +376,9 @@ export default function GroceryAnalysisPage() {
           <Typography>
             {allItems.length === 0 
               ? 'No grocery data found. Please ensure the XML file is accessible.'
-              : 'No grocery data found in the selected date range.'
+              : searchQuery.trim()
+                ? `No items found matching "${searchQuery}"${dateRange.startDate || dateRange.endDate ? ' in the selected date range' : ''}.`
+                : 'No grocery data found in the selected date range.'
             }
           </Typography>
         </Alert>
