@@ -437,6 +437,67 @@ export default function StoreDetailPage() {
           </Card>
         </Grid>
 
+        {/* Recent Visits */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                <CalendarToday sx={{ mr: 1, verticalAlign: 'middle' }} />
+                Recent Visits
+              </Typography>
+              {storeDetails.visits.length > 0 ? (
+                <List>
+                  {storeDetails.visits
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .slice(0, 10)
+                    .map((visit, index) => (
+                      <Box key={visit.transactionId}>
+                        <ListItemButton
+                          onClick={() => router.push(`/stores/${encodeURIComponent(storeDetails.storeName)}/visits/${visit.transactionId}`)}
+                          sx={{ 
+                            '&:hover': { 
+                              backgroundColor: 'action.hover' 
+                            } 
+                          }}
+                        >
+                          <ListItemIcon>
+                            <Typography variant="h6" color="primary">
+                              #{index + 1}
+                            </Typography>
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={
+                              <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Typography variant="h6">
+                                  {formatDate(visit.date)}
+                                </Typography>
+                                <Chip 
+                                  label={formatPrice(visit.totalAmount)} 
+                                  size="small" 
+                                  color="secondary"
+                                />
+                              </Box>
+                            }
+                            secondary={
+                              <Typography variant="body2" color="text.secondary">
+                                Transaction ID: {visit.transactionId}
+                              </Typography>
+                            }
+                          />
+                        </ListItemButton>
+                        {index < Math.min(storeDetails.visits.length, 10) - 1 && <Divider />}
+                      </Box>
+                    ))}
+                </List>
+              ) : (
+                <Alert severity="info">
+                  <Typography>No visits found for this store{dateRange.startDate || dateRange.endDate ? ' in the selected date range' : ''}.</Typography>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
         {/* Most Common Items */}
         <Grid item xs={12}>
           <Card>
