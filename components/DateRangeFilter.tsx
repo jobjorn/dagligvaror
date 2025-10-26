@@ -9,13 +9,19 @@ import {
   TextField,
   Button,
   Stack,
-  Chip
+  Chip,
+  ButtonGroup
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { CalendarToday, Clear } from '@mui/icons-material';
 import { enGB } from 'date-fns/locale';
+import { subDays } from 'date-fns/subDays';
+import { subMonths } from 'date-fns/subMonths';
+import { subYears } from 'date-fns/subYears';
+import { startOfDay } from 'date-fns/startOfDay';
+import { endOfDay } from 'date-fns/endOfDay';
 
 interface DateRange {
   startDate: Date | null;
@@ -48,6 +54,29 @@ export default function DateRangeFilter({
     onDateRangeChange({
       ...dateRange,
       endDate: date
+    });
+  };
+
+  const handleShortcut = (shortcut: 'lastWeek' | 'lastMonth' | 'lastYear') => {
+    const today = new Date();
+    let startDate: Date;
+    let endDate: Date = endOfDay(today);
+
+    switch (shortcut) {
+      case 'lastWeek':
+        startDate = startOfDay(subDays(today, 7));
+        break;
+      case 'lastMonth':
+        startDate = startOfDay(subMonths(today, 1));
+        break;
+      case 'lastYear':
+        startDate = startOfDay(subYears(today, 1));
+        break;
+    }
+
+    onDateRangeChange({
+      startDate,
+      endDate
     });
   };
 
@@ -117,6 +146,24 @@ export default function DateRangeFilter({
               </Button>
             )}
           </Stack>
+
+          {/* Quick Date Range Shortcuts */}
+          <Box mt={2}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Quick select:
+            </Typography>
+            <ButtonGroup size="small" variant="outlined" color="primary">
+              <Button onClick={() => handleShortcut('lastWeek')}>
+                Last Week
+              </Button>
+              <Button onClick={() => handleShortcut('lastMonth')}>
+                Last Month
+              </Button>
+              <Button onClick={() => handleShortcut('lastYear')}>
+                Last Year
+              </Button>
+            </ButtonGroup>
+          </Box>
           
           {isFilterActive && (
             <Box mt={2}>

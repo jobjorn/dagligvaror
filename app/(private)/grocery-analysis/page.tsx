@@ -18,6 +18,14 @@ import {
   ListItemButton
 } from '@mui/material';
 import { ShoppingCart, TrendingUp, LocalGroceryStore } from '@mui/icons-material';
+import DateRangeFilter from '../../../components/DateRangeFilter';
+
+interface Transaction {
+  date: string;
+  quantity: number;
+  price: number;
+  transactionId: string;
+}
 
 interface GroceryItem {
   description: string;
@@ -25,24 +33,113 @@ interface GroceryItem {
   totalPrice: number;
   averagePrice: number;
   purchaseCount: number;
+  transactions: Transaction[];
 }
 
 export default function GroceryAnalysisPage() {
   const router = useRouter();
   const [items, setItems] = useState<GroceryItem[]>([]);
+  const [allItems, setAllItems] = useState<GroceryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<{ startDate: Date | null; endDate: Date | null }>({
+    startDate: null,
+    endDate: null
+  });
 
   useEffect(() => {
     analyzeGroceryData();
   }, []);
+
+  // Update filtered items when date range changes
+  useEffect(() => {
+    const filtered = filterDataByDateRange(allItems)
+      .sort((a, b) => b.totalQuantity - a.totalQuantity)
+      .slice(0, 50);
+    setItems(filtered);
+  }, [dateRange, allItems]);
+
+  // Filter data based on date range
+  const filterDataByDateRange = (items: GroceryItem[]) => {
+    if (!dateRange.startDate && !dateRange.endDate) {
+      return items;
+    }
+
+    return items.map(item => {
+      const filteredTransactions = item.transactions.filter(transaction => {
+        const transactionDate = new Date(transaction.date);
+        const startDate = dateRange.startDate;
+        const endDate = dateRange.endDate;
+
+        if (startDate && endDate) {
+          return transactionDate >= startDate && transactionDate <= endDate;
+        } else if (startDate) {
+          return transactionDate >= startDate;
+        } else if (endDate) {
+          return transactionDate <= endDate;
+        }
+        return true;
+      });
+
+      if (filteredTransactions.length === 0) {
+        return null; // Filter out items with no transactions in date range
+      }
+
+      // Recalculate statistics based on filtered transactions
+      const totalQuantity = filteredTransactions.reduce((sum, t) => sum + t.quantity, 0);
+      const totalPrice = filteredTransactions.reduce((sum, t) => sum + t.price, 0);
+      const purchaseCount = filteredTransactions.length;
+      const averagePrice = totalQuantity > 0 ? totalPrice / totalQuantity : 0;
+
+      return {
+        ...item,
+        totalQuantity,
+        totalPrice,
+        averagePrice,
+        purchaseCount,
+        transactions: filteredTransactions
+      };
+    }).filter((item): item is GroceryItem => item !== null);
+  };
+
 
   const analyzeGroceryData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch both XML files
+      // Fetch both receipt XML files to get transaction dates
+      const receiptFiles = ['/Butik_kvitto.xml', '/Butik_kvitto_2.xml'];
+      const transactionDateMap = new Map<string, string>();
+
+      for (const receiptFile of receiptFiles) {
+        try {
+          const receiptResponse = await fetch(receiptFile);
+          if (!receiptResponse.ok) {
+            console.warn(`Failed to fetch ${receiptFile}, skipping...`);
+            continue;
+          }
+          const receiptXmlText = await receiptResponse.text();
+          const receiptParser = new DOMParser();
+          const receiptXmlDoc = receiptParser.parseFromString(receiptXmlText, 'text/xml');
+          
+          // Create a map of transaction IDs to dates
+          const receiptTransactions = receiptXmlDoc.querySelectorAll('transactions');
+          receiptTransactions.forEach((transaction) => {
+            const transactionId = transaction.querySelector('transactionId')?.textContent || '';
+            const timestamp = transaction.querySelector('transactionTimestamp')?.textContent || '';
+            if (transactionId && timestamp) {
+              // Convert timestamp to date string (format: "2017-05-16 21:17:00" -> "2017-05-16")
+              const dateOnly = timestamp.split(' ')[0];
+              transactionDateMap.set(transactionId, dateOnly);
+            }
+          });
+        } catch (fileError) {
+          console.warn(`Error processing ${receiptFile}:`, fileError);
+        }
+      }
+
+      // Fetch both grocery data XML files
       const xmlFiles = ['/Butik_kvittorader.xml', '/Butik_kvittorader_2.xml'];
       const itemMap = new Map<string, GroceryItem>();
 
@@ -71,6 +168,14 @@ export default function GroceryAnalysisPage() {
 
             if (quantity > 0 && price > 0) {
               const key = description.trim() || 'Unknown Item';
+              const transactionDate = transactionDateMap.get(transactionId) || new Date().toISOString().split('T')[0];
+              
+              const transactionData: Transaction = {
+                date: transactionDate,
+                quantity,
+                price,
+                transactionId
+              };
               
               if (itemMap.has(key)) {
                 const existing = itemMap.get(key)!;
@@ -78,13 +183,15 @@ export default function GroceryAnalysisPage() {
                 existing.totalPrice += price;
                 existing.purchaseCount += 1;
                 existing.averagePrice = existing.totalPrice / existing.totalQuantity;
+                existing.transactions.push(transactionData);
               } else {
                 itemMap.set(key, {
                   description: key,
                   totalQuantity: quantity,
                   totalPrice: price,
                   averagePrice: price,
-                  purchaseCount: 1
+                  purchaseCount: 1,
+                  transactions: [transactionData]
                 });
               }
             }
@@ -100,6 +207,7 @@ export default function GroceryAnalysisPage() {
         .sort((a, b) => b.totalQuantity - a.totalQuantity)
         .slice(0, 50); // Top 50 items
 
+      setAllItems(sortedItems);
       setItems(sortedItems);
     } catch (err) {
       console.error('Error analyzing grocery data:', err);
@@ -141,6 +249,16 @@ export default function GroceryAnalysisPage() {
       <Typography variant="subtitle1" color="text.secondary" paragraph>
         Most commonly purchased items based on your shopping history
       </Typography>
+
+      {/* Date Range Filter */}
+      <Box mb={3}>
+        <DateRangeFilter
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          onClear={() => setDateRange({ startDate: null, endDate: null })}
+          title="Filter by Date Range"
+        />
+      </Box>
 
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -221,7 +339,12 @@ export default function GroceryAnalysisPage() {
 
       {items.length === 0 && (
         <Alert severity="info">
-          <Typography>No grocery data found. Please ensure the XML file is accessible.</Typography>
+          <Typography>
+            {allItems.length === 0 
+              ? 'No grocery data found. Please ensure the XML file is accessible.'
+              : 'No grocery data found in the selected date range.'
+            }
+          </Typography>
         </Alert>
       )}
     </Box>
