@@ -36,6 +36,9 @@ interface PriceDataPoint {
   quantity: number;
   transactionId: string;
   store: string;
+  discountValue: number;
+  personalOfferId: string;
+  voucherValue: number;
 }
 
 interface ChartDataPoint {
@@ -49,6 +52,8 @@ interface ItemDetails {
   totalPrice: number;
   averagePrice: number;
   purchaseCount: number;
+  totalDiscount: number;
+  totalSavings: number;
   priceHistory: PriceDataPoint[];
   minPrice: number;
   maxPrice: number;
@@ -110,6 +115,8 @@ export default function ItemDetailPage() {
         totalPrice: 0,
         averagePrice: 0,
         purchaseCount: 0,
+        totalDiscount: 0,
+        totalSavings: 0,
         minPrice: 0,
         maxPrice: 0,
         priceTrend: 'stable' as const,
@@ -120,6 +127,8 @@ export default function ItemDetailPage() {
 
     let totalQuantity = 0;
     let totalPrice = 0;
+    let totalDiscount = 0;
+    let totalSavings = 0;
     let purchaseCount = 0;
     let minPrice = Infinity;
     let maxPrice = 0;
@@ -127,6 +136,8 @@ export default function ItemDetailPage() {
     priceHistory.forEach(item => {
       totalQuantity += item.quantity;
       totalPrice += item.price * item.quantity;
+      totalDiscount += Math.abs(item.discountValue);
+      totalSavings += Math.abs(item.discountValue) + item.voucherValue;
       purchaseCount += 1;
       minPrice = Math.min(minPrice, item.price);
       maxPrice = Math.max(maxPrice, item.price);
@@ -191,6 +202,8 @@ export default function ItemDetailPage() {
       totalPrice,
       averagePrice: totalQuantity > 0 ? totalPrice / totalQuantity : 0,
       purchaseCount,
+      totalDiscount,
+      totalSavings,
       minPrice: minPrice === Infinity ? 0 : minPrice,
       maxPrice,
       priceTrend,
@@ -266,9 +279,14 @@ export default function ItemDetailPage() {
             const price = parseFloat(transaction.querySelector('price')?.textContent || '0');
             const description = transaction.querySelector('itemDesc')?.textContent || '';
             const transactionId = transaction.querySelector('transactionId')?.textContent || '';
+            const discountValue = parseFloat(transaction.querySelector('discountValue')?.textContent || '0');
+            const personalOfferId = transaction.querySelector('personalOfferId')?.textContent || '0';
+            const voucherValue = parseFloat(transaction.querySelector('voucherValue')?.textContent || '0');
 
             // Check if this transaction is for our item
-            if (description.trim() === itemName && quantity > 0 && price > 0) {
+            // Handle "Unknown Item" case where description might be empty
+            const normalizedDescription = description.trim() || 'Unknown Item';
+            if (normalizedDescription === itemName && quantity > 0 && price > 0) {
               const unitPrice = price / quantity;
               const transactionInfo = transactionStoreMap.get(transactionId);
               const storeName = transactionInfo?.store || 'Unknown Store';
@@ -285,7 +303,10 @@ export default function ItemDetailPage() {
                 price: unitPrice,
                 quantity: quantity,
                 transactionId: transactionId,
-                store: storeName
+                store: storeName,
+                discountValue,
+                personalOfferId,
+                voucherValue
               });
 
               totalQuantity += quantity;
@@ -378,6 +399,8 @@ export default function ItemDetailPage() {
         totalPrice,
         averagePrice: totalQuantity > 0 ? totalPrice / totalQuantity : 0,
         purchaseCount,
+        totalDiscount: priceHistory.reduce((sum, item) => sum + Math.abs(item.discountValue), 0),
+        totalSavings: priceHistory.reduce((sum, item) => sum + Math.abs(item.discountValue) + item.voucherValue, 0),
         priceHistory,
         minPrice: minPrice === Infinity ? 0 : minPrice,
         maxPrice,
@@ -491,6 +514,28 @@ export default function ItemDetailPage() {
                     secondary={`${filteredStats.totalQuantity.toFixed(1)} units`} 
                   />
                 </ListItem>
+                {filteredStats.totalSavings > 0 && (
+                  <ListItem>
+                    <ListItemIcon>
+                      <TrendingDown />
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary="Total Savings" 
+                      secondary={formatPrice(filteredStats.totalSavings)} 
+                    />
+                  </ListItem>
+                )}
+                {filteredStats.totalDiscount > 0 && (
+                  <ListItem>
+                    <ListItemIcon>
+                      <AttachMoney />
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary="Total Discounts" 
+                      secondary={formatPrice(filteredStats.totalDiscount)} 
+                    />
+                  </ListItem>
+                )}
               </List>
             </CardContent>
           </Card>
@@ -629,6 +674,13 @@ export default function ItemDetailPage() {
                                     size="small" 
                                     color="default"
                                   />
+                                  {(Math.abs(purchase.discountValue) > 0 || purchase.voucherValue > 0) && (
+                                    <Chip 
+                                      label={`Saved ${(Math.abs(purchase.discountValue) + purchase.voucherValue).toFixed(2)} SEK`} 
+                                      size="small" 
+                                      color="success"
+                                    />
+                                  )}
                                 </Box>
                               </Box>
                             }
