@@ -445,6 +445,74 @@ export default function ItemDetailPage() {
             </CardContent>
           </Card>
         </Grid>
+
+        {/* Purchase History List */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                <ShoppingCart sx={{ mr: 1, verticalAlign: 'middle' }} />
+                Purchase History
+              </Typography>
+              {itemDetails.priceHistory.length > 0 ? (
+                <List>
+                  {itemDetails.priceHistory
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) // Sort by date, newest first
+                    .map((purchase, index) => (
+                      <Box key={`${purchase.transactionId}-${index}`}>
+                        <ListItem>
+                          <ListItemIcon>
+                            <CalendarToday />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={
+                              <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap">
+                                <Typography variant="subtitle1">
+                                  {formatDate(purchase.date)}
+                                </Typography>
+                                <Box display="flex" gap={1} flexWrap="wrap">
+                                  <Chip 
+                                    label={`${purchase.quantity.toFixed(1)} units`} 
+                                    size="small" 
+                                    color="primary"
+                                  />
+                                  <Chip 
+                                    label={`${purchase.price.toFixed(2)} SEK/unit`} 
+                                    size="small" 
+                                    color="secondary"
+                                  />
+                                  <Chip 
+                                    label={`${(purchase.price * purchase.quantity).toFixed(2)} SEK total`} 
+                                    size="small" 
+                                    color="default"
+                                  />
+                                </Box>
+                              </Box>
+                            }
+                            secondary={
+                              <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap">
+                                <Typography variant="body2" color="text.secondary">
+                                  Store: {purchase.store}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  Transaction ID: {purchase.transactionId}
+                                </Typography>
+                              </Box>
+                            }
+                          />
+                        </ListItem>
+                        {index < itemDetails.priceHistory.length - 1 && <Divider />}
+                      </Box>
+                    ))}
+                </List>
+              ) : (
+                <Alert severity="info">
+                  <Typography>No purchase history available for this item.</Typography>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
     </Box>
   );
